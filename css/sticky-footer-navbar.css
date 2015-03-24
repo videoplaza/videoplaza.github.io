@@ -1,0 +1,64 @@
+/* Sticky footer styles
+-------------------------------------------------- */
+html {
+  position: relative;
+  min-height: 100%;
+}
+body {
+  /* Margin bottom by footer height */
+  margin-bottom: 75px;
+}
+.footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  /* Set the fixed height of the footer here */
+  height: 75px;
+  background-color: #f5f5f5;
+  padding:20px;
+  background-image: url('/images/droppedImage-1397.png');
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: cover;
+}
+
+body > .container {
+  padding: 30px 15px 0;
+}
+.container .text-muted {
+  margin: 20px 0;
+}
+
+.footer > .container {
+  padding-right: 15px;
+  padding-left: 15px;
+}
+
+code {
+  font-size: 80%;
+}
+
+nav.navbar {
+  font-family: "HelveticaNeue-CondensedBold", "Helvetica Neue",Helvetica,Arial,sans-serif;
+  background-color: rgba(0,0,0,0.45);
+  color: #fff;
+  padding: 10px 0;
+}
+
+.navbar-custom .navbar-toggle .icon-bar {
+  background-color: #fff;
+}
+
+h1,h2,h3,h4,h5,h6 {
+    font-family: "HelveticaNeue-CondensedBold", "Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+
+.header-bg {
+  background-image: url('/images/droppedImage-1397.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  color: #fff;  
+  padding: 80px 0 50px 0;
+  text-align: center
+}

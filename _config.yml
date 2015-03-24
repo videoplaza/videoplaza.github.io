@@ -1,0 +1,12 @@
+# Site settings
+title: Videoplaza Engineering Blog
+email: engineering@example.com
+description: > # this means to ignore newlines until "baseurl:"
+  Videoplaza, an Ooyala company, empowers broadcasters and video publishers to build profitable and sustainable businesses in the internet-delivered TV world. More than 50% of the broadcasters in Europe run their advertising businesses on Karbon. Videoplaza's technology, built for video, is device agnostic and empowers publishers to trade across sales channels, maximising the value of their audiences. Due to the belief in valuing service equally to technology, Videoplaza have local teams in London (HQ), Stockholm (R&D), Berlin, Cologne, Madrid, Paris, and Singapore.
+baseurl: "" # the subpath of your site, e.g. /blog/
+url: "http://videoplaza.github.io" # the base hostname & protocol for your site
+twitter_username: ""
+github_username:  ""
+
+# Build settings
+markdown: kramdown

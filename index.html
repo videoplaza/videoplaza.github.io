@@ -1,0 +1,36 @@
+---
+layout: default
+---
+    <!-- Begin page content -->
+    <div class="header-bg">
+
+
+      <div class="container">
+        <div class="row">
+          <div class="col-md-3"></div>
+          <div class="page-header col-md-6">
+            <h1>Videoplaza Engineering Blog</h1>
+          </div>
+          <div class="col-md-3"></div>
+        </div>  
+      </div>
+   </div>   
+      <div class="container">
+        {% for post in site.posts %}
+        <div class="row">
+          <div class="col-md-1">
+            <img src="{{ post.author-pic }}" style="width: 68px; border-radius:34px;margin-top:32px">
+          </div>
+          <div class="col-md-11">
+            <h2>
+              <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+            </h2>
+            <h6>
+              Written {% if post.author %} by <a href="{{ post.author-twitter }}">{{ post.author }}</a>{% endif %} on {{ post.date | date: "%b %-d, %Y" }}
+            </h6>
+            {{ post.content | strip_html | truncatewords: 50 }} <a href="{{ post.url | prepend: site.baseurl }}">Full post</a>
+          </div>
+        </div>  
+        {% endfor %}
+
+    </div>

@@ -1,0 +1,18 @@
+---
+layout: default
+---
+    <!-- Begin page content -->    
+    <div class="header-bg"{% if page.title-pic %} style="background-image: url('{{ page.title-pic }}');"{% endif %}>
+	    <div class="container">
+		    <div class="row">
+		      <div class="col-md-3"></div>
+		      <div class="page-header col-md-6">
+		        <h1>{{ page.title }}</h1>
+		      </div>
+		      <div class="col-md-3"></div>
+		    </div>  
+		</div>
+  	</div>
+    <div class="container">
+      <p>{{ content }}</p>
+    </div>
