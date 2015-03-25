@@ -8,26 +8,22 @@ author: <a href="https://github.com/egoon">Bennie Lundmark</a>
 author-pic: //gravatar.com/avatar/c88d8bdfffc14f1a407edd8af12bf14a
 ---
 
-The distribution algorithm is one of the most central in the Videoplaza ad server. In this article I will explain how the current and new algorithms works, why we need to change, and what the up- and down-sides are with deterministic distribution.
+<style type="text/css">
+  p { text-align: justify; text-justify: inter-word; }
+</style>
+
+The distribution algorithm is one of the most central in the Videoplaza ad server. In this article I will explain how the current and new algorithms work, why we need to change, and what the up- and down-sides are with deterministic distribution.
 
 
 ### Introduction
 
 Let me start this by explaining a little bit about how the ad server at Videoplaza works.
 
-<img src="/images/deterministic-distribution/ad-serving.png" title="The pink dude is probably you" alt="Ad serving diagram" width="70%">
+<img src="/images/deterministic-distribution/ad-serving.png" title="The pink dude is probably you" alt="Ad serving diagram" width="80%">
 
 A Karbon User, usually a sales person at a cable network or something similar, has sold some ad space to an advertiser. She uploads the ad in the Karbon UI, and adds a bunch of rules according to the deal with the advertiser. The rules usually contain a date span, what type of program the ad is shown with, and how many times the ad should be viewed (called Impressions). The ad is then saved to an entity store, where other parts of the ad server can access it.
 
-At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start of the show, mid-way and at the end) the ad player makes a request to the distributor for a list of ads to show. The distributor figures out which ads to show (more on this later). As the ad player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These impressions are then used to calculate which ads should be shown next.
-
-### Issues with Forecasting
-
-Deterministic Distribution is a project initiated by the forecast team at Videoplaza . The current algorithm uses a random distribution algorithm, explained below, that works very well in most cases.
-In the forecast team we are currently developing a forecasting engine that runs the distributor, using historical data and current account setup, to simulate the behaviour of campaigns in the future. It works pretty well, and gives pretty consistent result between simulations. 
-Or, it did, until we developed the feature called Daily Breakdown.
-
-Daily Breakdown lets you not only see the end result of your simulated campaign, but also how much was delivered each day during the forecast. It turned out that the outcome for any specific day could vary as much as 50% between simulations. This makes Daily Breakdown very unreliable, and pretty much useless. 
+At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start of the show, mid-way and at the end) the ad player makes a request to the distributor for a list of ads to show. The distributor figures out which ads to show (this is called a Selection, more on this later). As the ad player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These impressions are then used to calculate which ads should be shown next.
 
 ### Distribution basics (a bit simplified)
 
@@ -41,7 +37,7 @@ The Selector then randomly selects an ad from the list. If the sum of all ads’
 
 *Example 1:*
 
-<img src="/images/deterministic-distribution/example1.png" alt="Ad1 weight 0.6, Ad2 weight 0.3" width="70%">
+<img src="/images/deterministic-distribution/example1.png" alt="Ad1 weight 0.6, Ad2 weight 0.3" width="80%">
 
 *Ad 1 has 60% of being selected, Ad 2 has 30% chance. And there is a 10% chance that no ad will be selected.*
 
@@ -49,21 +45,22 @@ In the case where sum of the ads’ weights is greater than 1, all weights will 
 
 *Example 2:*
 
-<img src="/images/deterministic-distribution/example2.png" alt="Ad1 weight 0.6, Ad2 weight 0.3, Ad3: weight 0.3 -> Ad1 weight 0.5, Ad2 weight 0.25, Ad3 weight 0.25" width="70%">
+<img src="/images/deterministic-distribution/example2.png" alt="Ad1 weight 0.6, Ad2 weight 0.3, Ad3: weight 0.3 -> Ad1 weight 0.5, Ad2 weight 0.25, Ad3 weight 0.25" width="80%">
 
 *The sum of all weights is 1.2 and has to be scaled down by 5/6. Ad 1 has 50% chance of being selected, and Ad 2 and 3 have 25% chance each.*
 
 
-
 ### The problem with random forecasting
 
-The distribution is designed to even out over time, and using a large amount of requests.
+The current random algorithm, explained above, works very well in most cases. If only a few requests are made, the result is very random, and impossible to forsee. It does however even out in the long run. Especially since the weights are updated periodically based on previous delivery.
 
-The forecast engine uses a sample of the historical requests for performance reasons. Usually about one in a hundred, and scales the result accordingly.
+In the forecast team we are currently developing a forecasting engine that runs the distributor, using historical data and current account setup, to simulate the behaviour of campaigns in the future. It works pretty well, and gives pretty consistent result between simulations. 
 
-When forecasting with Daily Breakdown we want to see an even distribution using fewer requests: 1/100 to 1/1000, and for a shorter period of time: one day rather than the ad’s lifetime.
+Or, it did, until we developed the feature called Daily Breakdown.
 
-We tried increasing the sample size, but the reduction in performance was unacceptable. And the result was not as good as we would hope. So we decided to try a more deterministic approach to ad selection.
+Daily Breakdown lets you not only see the end result of your simulated campaign, but also how much was delivered each day during the forecast. It turned out that the outcome for any specific day could vary as much as 50% between simulations. This makes Daily Breakdown very unreliable, and pretty much useless. When forecasting with Daily Breakdown we want to see an even distribution using fewer requests: 1/100 to 1/1000, and for a shorter period of time: one day rather than the ad’s lifetime.
+
+We tried increasing the sample size, but the reduction in performance was unacceptable. And the result was not as good as we would hope. So we decided to try a more deterministic approach to ad selection. An approach that would produce an even distribution with a lot fewer requests.
 
 ## Deterministic Selection
 
@@ -86,7 +83,7 @@ After the list of ads has been filtered, and if necessary normalised as describe
 
 (b): An ad that is selected will have a smaller chance of being selected again. If the weight was not reduced, the same ad would always be selected.
 
-(c): A selected ad's Current Weight should be the same, regardless of which position it was selected for. Because a ad can not take two positions in the same break, it will not be part of selection for later positions if it is selected early. It's Current Weight would not be increased as many times as if it was selected last. This must be compensated for.
+(c): A selected ad's Current Weight should be the same, regardless of which position it was selected for. Because an ad can not take two positions in the same selection, it will not be part of selection for later positions if it is selected early. It's Current Weight would not be increased as many times as if it was selected last. This must be compensated for.
  
 Each iteration, the same amount of weight is added and subtracted from the Current Weights, which makes it a zero-sum algorithm. That is good for when new ads becomes available as time passes. If the Current Weights would increase only, a new ad would not get selected for a very long time as its weight catches up with other ads. If the Current Weights would decrease over time, then 'old' ads would cease to deliver for a long time as a newer ads became available. It also prevents any overflow problems nicely.
 
@@ -98,22 +95,19 @@ This algorithm introduces more state to the distributor: the Current Weights. Th
 
 ### Other considerations
 
-*Multiple Positions:* Quite frequently there are multiple ads in each ad break. Usually no ad will appear twice in the same break. After an ad is selected, it is removed from the list (unless it’s air), but the Actual Weights are not changed. Then another selection is made on the remainder of the list, including increasing the Current Weights. To make sure that it does not matter if an ad is selected first or last, the selected (and removed) ad’s Current Weight is also increased.
-
-*Racing goals:* Goals with a very high Actual Weight (higher than 1 / number of positions), that should be selected in every break will be moved to a higher layer, like guaranteed Share of Voice goals. This makes the behavior of the deterministic forecasting slightly different than random forecasting. If two goals are racing with the same targeting, they will both be selected equally often, regardless of relative size. This could probably be improved somehow...
+*Multiple Positions:* Quite frequently there are multiple ads in each ad selection. Usually no ad will appear twice in the same selection. After an ad is selected, it is removed from the list (unless it’s air), but the Actual Weights are not changed. Then another selection is made on the remainder of the list, including increasing the Current Weights. To make sure that it does not matter if an ad is selected first or last, the selected (and removed) ad’s Current Weight is also increased.
 
 *Different targeting:* Some ads with wider targeting will be condending with different ads in different selections. This algorithm will still work in these circumstances. See example 2 below.
 
 <style type="text/css">
     td.up{ color: green; }
     td.down{ color: red; }
-    th{ width: 130px; }
-    tr.filtered{ color: gray; }
+    tr.filtered{ color: lightgray; }
 </style>
 
 ### Example 1
 
-<table>
+<table class="table">
   <tr>
     <th>Ad</th><th>Actual W</th><th>Current W</th><th>Selections</th>
   </tr>
@@ -129,6 +123,8 @@ This algorithm introduces more state to the distributor: the Current Weights. Th
 </table>
 <p/>
 
+Calculations are written as Previous Current Weight + Actual Weight [ - 1 if selected]
+
 *Selection 1*
 
 Increase the ads’s Current Weights by their Actual Weight (0 -> 0.5, 0 -> 0.25)
@@ -137,15 +133,15 @@ Select heaviest ad (Ad1)
 
 Reduce its weight by 1 (0,5 -> -0.5)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>0.5</td><td class="down">-0.5</td><td class="up">1</td>
+    <td>Ad1</td><td>0.5</td><td>0 + 0.5 -1</td><td class="down">-0.5</td><td class="up">1</td>
   </tr><tr>
-    <td>Ad2</td><td>0.25</td><td class="up">0.25</td><td>0</td>
+    <td>Ad2</td><td>0.25</td><td>0 + 0.25</td><td class="up">0.25</td><td>0</td>
   </tr><tr>
-    <td>Air</td><td>0.25</td><td class="up">0.25</td><td>0</td>
+    <td>Air</td><td>0.25</td><td>0 + 0.25</td><td class="up">0.25</td><td>0</td>
   </tr>
 </table>
 <p/>
@@ -158,15 +154,15 @@ Select heaviest ad (Ad2)
 
 Reduce its weight by 1 (0,5 -> -0.5)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>0.5</td><td class="up">0</td><td>1</td>
+    <td>Ad1</td><td>0.5</td><td>-0.5 + 0.5</td><td class="up">0</td><td>1</td>
   </tr><tr>
-    <td>Ad2</td><td>0.25</td><td class="down">-0.5</td><td class="up">1</td>
+    <td>Ad2</td><td>0.25</td><td>0.25 + 0.25 -1</td><td class="down">-0.5</td><td class="up">1</td>
   </tr><tr>
-    <td>Air</td><td>0.25</td><td class="up">0.5</td><td>0</td>
+    <td>Air</td><td>0.25</td><td>0.25 + 0.25</td><td class="up">0.5</td><td>0</td>
   </tr>
 </table>
 <p/>
@@ -179,15 +175,15 @@ Select heaviest ad (Air)
 
 Reduce its weight by 1 (0,75 -> -0.25)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>0.5</td><td class="up">0.5</td><td>1</td>
+    <td>Ad1</td><td>0.5</td><td>0 + 0.5</td><td class="up">0.5</td><td>1</td>
   </tr><tr>
-    <td>Ad2</td><td>0.25</td><td class="up">-0.25</td><td>1</td>
+    <td>Ad2</td><td>0.25</td><td>-0.5 + 0.25</td><td class="up">-0.25</td><td>1</td>
   </tr><tr>
-    <td>Air</td><td>0.25</td><td class="down">-0.25</td><td class="up">1</td>
+    <td>Air</td><td>0.25</td><td>0.5 + 0.25 -1</td><td class="down">-0.25</td><td class="up">1</td>
   </tr>
 </table>
 <p/>
@@ -198,15 +194,15 @@ Increase Ad1 and Ad2 Current Weights by their Actual Weight (0.5 -> 1, -0.25 -> 
 
 Select heaviest ad (Ad1)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>0.5</td><td class="down">0</td><td class="up">2</td>
+    <td>Ad1</td><td>0.5</td><td>0.5 + 0.5 - 1</td><td class="down">0</td><td class="up">2</td>
   </tr><tr>
-    <td>Ad2</td><td>0.25</td><td class="up">0</td><td>1</td>
+    <td>Ad2</td><td>0.25</td><td>-0.25 + 0.25</td><td class="up">0</td><td>1</td>
   </tr><tr>
-    <td>Air</td><td>0.25</td><td class="up">0</td><td>1</td>
+    <td>Air</td><td>0.25</td><td>-0.25 + 0.25</td><td class="up">0</td><td>1</td>
   </tr>
 </table>
 <p/>
@@ -221,7 +217,7 @@ We have three ads, with different targeting. Ad1 is targeted site-wide, which me
 
 Reqests alternate between News and Sports. It may seem like Ad1 will push too much on Ad2 because they will compete in the first request, but it will even out fairly quickly.
 
-<table>
+<table class="table">
   <tr>
     <th>Ad</th><th>Target</th><th>Actual W</th><th>Current W</th><th>Selections</th>
   </tr><tr>
@@ -242,15 +238,15 @@ Select heaviest ad (Ad1)
 
 Reduce its weight by 1 (0,5 -> -0.5)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Target</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Target</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>All</td><td>0.5</td><td class="down">-0.5</td><td class="up">1</td>
+    <td>Ad1</td><td>All</td><td>0.5</td><td>0 + 0.5 - 1</td><td class="down">-0.5</td><td class="up">1</td>
   </tr><tr>
-    <td>Ad2</td><td>News</td><td>0.5</td><td class="up">0.5</td><td>0</td>
+    <td>Ad2</td><td>News</td><td>0.5</td><td>0 + 0.5</td><td class="up">0.5</td><td>0</td>
   </tr><tr class="filtered">
-    <td>Ad3</td><td>Sports</td><td>0.5</td><td>0</td><td>0</td>
+    <td>Ad3</td><td>Sports</td><td>0.5</td><td></td><td>0</td><td>0</td>
   </tr>
 </table>
 <p/>
@@ -263,15 +259,15 @@ Select heaviest ad (Ad3)
 
 Reduce its weight by 1 (0,5 -> -0.5)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Target</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Target</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>All</td><td>0.5</td><td class="up">0</td><td>1</td>
+    <td>Ad1</td><td>All</td><td>0.5</td><td>-0.5 + 0.5</td><td class="up">0</td><td>1</td>
   </tr><tr class="filtered">
-    <td>Ad2</td><td>News</td><td>0.5</td><td>0.5</td><td>0</td>
+    <td>Ad2</td><td>News</td><td>0.5</td><td></td><td>0.5</td><td>0</td>
   </tr><tr>
-    <td>Ad3</td><td>Sports</td><td>0.5</td><td class="down">-0.5</td><td class="up">1</td>
+    <td>Ad3</td><td>Sports</td><td>0.5</td><td>0 + 0.5 - 1</td><td class="down">-0.5</td><td class="up">1</td>
   </tr>
 </table>
 <p/>
@@ -284,15 +280,15 @@ Select heaviest ad (Ad2)
 
 Reduce its weight by 1 (1 -> 0)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Target</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Target</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>All</td><td>0.5</td><td class="up">0.5</td><td>1</td>
+    <td>Ad1</td><td>All</td><td>0.5</td><td>0 + 0.5</td><td class="up">0.5</td><td>1</td>
   </tr><tr>
-    <td>Ad2</td><td>News</td><td>0.5</td><td class="down">0</td><td class="up">1</td>
+    <td>Ad2</td><td>News</td><td>0.5</td><td>0.5 + 0.5 - 1</td><td class="down">0</td><td class="up">1</td>
   </tr><tr class="filtered">
-    <td>Ad3</td><td>Sports</td><td>0.5</td><td>-0.5</td><td>1</td>
+    <td>Ad3</td><td>Sports</td><td>0.5</td><td></td><td>-0.5</td><td>1</td>
   </tr>
 </table>
 <p/>
@@ -305,15 +301,15 @@ Select heaviest ad (Ad1)
 
 Reduce its weight by 1 (1 -> 0)
 
-<table>
+<table class="table">
   <tr>
-    <th>Ad</th><th>Target</th><th>Actual W</th><th>Current W</th><th>Selections</th>
+    <th>Ad</th><th>Target</th><th>Actual W</th><th>Calculation</th><th>Current W</th><th>Selections</th>
   </tr><tr>
-    <td>Ad1</td><td>All</td><td>0.5</td><td class="down">0</td><td class="up">2</td>
+    <td>Ad1</td><td>All</td><td>0.5</td><td>0.5 + 0.5 - 1</td><td class="down">0</td><td class="up">2</td>
   </tr><tr class="filtered">
-    <td>Ad2</td><td>News</td><td>0.5</td><td>0</td><td>1</td>
+    <td>Ad2</td><td>News</td><td>0.5</td><td></td><td>0</td><td>1</td>
   </tr><tr>
-    <td>Ad3</td><td>Sports</td><td>0.5</td><td class="up">0</td><td>1</td>
+    <td>Ad3</td><td>Sports</td><td>0.5</td><td>-0.5 + 0.5</td><td class="up">0</td><td>1</td>
   </tr>
 </table>
 <p/>
