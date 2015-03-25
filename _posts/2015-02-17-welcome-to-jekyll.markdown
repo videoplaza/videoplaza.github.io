@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Impressive Techno Babble"
-title-pic: /images/Technology3.jpg
+title-pic: /images/africa-15428_1920.jpg
 date:   2015-02-17 14:07:02
 categories: jekyll update
 author: Jakob Bergendahl
