@@ -26,7 +26,7 @@ layout: default
               <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
             </h2>
             <h6>
-              Written {% if post.author %} by <a href="{{ post.author-twitter }}">{{ post.author }}</a>{% endif %} on {{ post.date | date: "%b %-d, %Y" }}
+              Written {% if post.author %} by <a href="{{ post.author-link }}">{{ post.author }}</a>{% endif %} on {{ post.date | date: "%b %-d, %Y" }}
             </h6>
             {{ post.content | strip_html | truncatewords: 50 }} <a href="{{ post.url | prepend: site.baseurl }}">Full post</a>
           </div>

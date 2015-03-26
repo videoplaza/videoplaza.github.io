@@ -4,8 +4,9 @@ title:  "Deterministic Distribution"
 title-pic: /images/Technology3.jpg
 date:   2015-03-25 15:00:00
 categories: forecasting distribution algorithm
-author: <a href="https://github.com/egoon">Bennie Lundmark</a>
+author: Bennie Lundmark
 author-pic: //gravatar.com/avatar/c88d8bdfffc14f1a407edd8af12bf14a
+author-link: https://github.com/egoon
 ---
 
 <style type="text/css">
