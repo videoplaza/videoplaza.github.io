@@ -22,17 +22,17 @@ Let me start by explaining a little bit about how the ad server at Videoplaza wo
 
 <img src="/images/deterministic-distribution/ad-serving.png" title="The pink dude is probably you" alt="Ad serving diagram" width="80%">
 
-A Karbon User, usually a sales person at a cable network or something similar, has sold some ad space to an advertiser. She uploads the ad in the Karbon UI, and adds a bunch of rules according to the deal with the advertiser. The rules usually contain a date span, what type of program the ad is shown with, and how many times the ad should be viewed (called Impressions). The ad is then saved to an entity store, where other parts of the ad server can access it.
+A Karbon User, usually a sales person at a cable network or something similar, has sold some ad space to an advertiser. She uploads an ad in the Karbon UI, and adds a bunch of rules according to the deal with the advertiser. The rules usually contain a date span, in what context the ad is allowed, and how many times the ad should be shown (called Impressions). The ad is then saved to an entity store, where other parts of the ad server can access it.
 
 At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start, mid-way and end of the show) the Ad Player makes a request to the Distributor for a list of ads. The Distributor figures out which ads to show (this is called a Selection, more on this later), and returns them to the Ad Player. As the Ad Player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These Impressions are then used to calculate which ads should be shown next.
 
 ### Distribution basics
 
-In the Distributor there is a list of ads that may be shown. The ads contain a bunch of rules, like start and end date, delivery ad, tags and much more. And there is also a weight for each ad.
+In the Distributor there is a list of ads that may be shown. The ads contain a set of rules, like start and end date, delivery goal, tags and much more. And there is also a weight for each ad.
 
 The rules are used to filter the ad list for each request. Then the weight is used to determine which of the filtered ads should actually be returned.
 
-The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery ad has already been achieved, how often it is filtered out and more. Weights are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery ad), and 1 means that it should be selected in every request that meets the filter criteria.
+The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery goal has already been achieved, how often it is filtered out and more. Weights are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery goal), and 1 means that it should be selected in every request that meets the filter criteria.
 
 The Selector then randomly selects an ad from the list. If the sum of all ads’ weights is less than 1, there is a chance that no ad will be selected. See example 1:
 
