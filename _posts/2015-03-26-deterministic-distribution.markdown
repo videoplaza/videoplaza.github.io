@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Deterministic Distribution"
-title-pic: /images/Technology3.jpg
+title-pic: /images/droppedImage-1397.png
 date:   2015-03-26 15:00:00
 categories: forecasting distribution algorithm
 author: Bennie Lundmark
