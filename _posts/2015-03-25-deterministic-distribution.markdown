@@ -12,26 +12,26 @@ author-pic: //gravatar.com/avatar/c88d8bdfffc14f1a407edd8af12bf14a
   p { text-align: justify; text-justify: inter-word; }
 </style>
 
-The distribution algorithm is one of the most central in the Videoplaza ad server. In this article I will explain how the current and new algorithms work, why we need to change, and what the up- and down-sides are with deterministic distribution.
+The distribution algorithm is one of the most central in the Videoplaza ad server. This article will describe how the random and new deterministic algorithms work, why it needs to change, and what the up- and down-sides are with deterministic distribution.
 
 
 ### Introduction
 
-Let me start this by explaining a little bit about how the ad server at Videoplaza works.
+Let me start by explaining a little bit about how the ad server at Videoplaza works.
 
 <img src="/images/deterministic-distribution/ad-serving.png" title="The pink dude is probably you" alt="Ad serving diagram" width="80%">
 
 A Karbon User, usually a sales person at a cable network or something similar, has sold some ad space to an advertiser. She uploads the ad in the Karbon UI, and adds a bunch of rules according to the deal with the advertiser. The rules usually contain a date span, what type of program the ad is shown with, and how many times the ad should be viewed (called Impressions). The ad is then saved to an entity store, where other parts of the ad server can access it.
 
-At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start of the show, mid-way and at the end) the ad player makes a request to the distributor for a list of ads to show. The distributor figures out which ads to show (this is called a Selection, more on this later). As the ad player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These impressions are then used to calculate which ads should be shown next.
+At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start, mid-way and end of the show) the Ad Player makes a request to the Distributor for a list of ads. The Distributor figures out which ads to show (this is called a Selection, more on this later), and returns them to the Ad Player. As the Ad Player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These Impressions are then used to calculate which ads should be shown next.
 
-### Distribution basics (a bit simplified)
+### Distribution basics
 
-In the Distributor there is a list of ads that may be shown. The ads contain a bunch of rules, like start and end date, delivery goal, tags and much more. And there is also a weight for each ad.
+In the Distributor there is a list of ads that may be shown. The ads contain a bunch of rules, like start and end date, delivery ad, tags and much more. And there is also a weight for each ad.
 
-The rules are used to filter the ad list for each request. And then the weight is used to determine which of the filtered ads should actually be returned.
+The rules are used to filter the ad list for each request. Then the weight is used to determine which of the filtered ads should actually be returned.
 
-The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery goal has already been delivered, how often it is filtered out and more. Weight are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery goal), and 1 means that it should be selected in every request that meets the filter criteria.
+The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery ad has already been achieved, how often it is filtered out and more. Weights are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery ad), and 1 means that it should be selected in every request that meets the filter criteria.
 
 The Selector then randomly selects an ad from the list. If the sum of all ads’ weights is less than 1, there is a chance that no ad will be selected. See example 1:
 
@@ -41,7 +41,7 @@ The Selector then randomly selects an ad from the list. If the sum of all ads’
 
 *Ad 1 has 60% of being selected, Ad 2 has 30% chance. And there is a 10% chance that no ad will be selected.*
 
-In the case where sum of the ads’ weights is greater than 1, all weights will be reduced proportionally. See example 2:
+In the case where the sum of the ads’ weights is greater than 1, all weights will be reduced proportionally. See example 2:
 
 *Example 2:*
 
@@ -52,52 +52,49 @@ In the case where sum of the ads’ weights is greater than 1, all weights will 
 
 ### The problem with random forecasting
 
-The current random algorithm, explained above, works very well in most cases. If only a few requests are made, the result is very random, and impossible to forsee. It does however even out in the long run. Especially since the weights are updated periodically based on previous delivery.
+The current random algorithm, explained above, works very well in most cases. If only a few requests are made, the result is very random, and impossible to forsee. It does even out in the long run, however. Especially since the weights are updated periodically based on previous delivery.
 
-In the forecast team we are currently developing a forecasting engine that runs the distributor, using historical data and current account setup, to simulate the behaviour of campaigns in the future. It works pretty well, and gives pretty consistent result between simulations. 
+In the forecast team we are currently developing a forecasting engine that runs the Distributor, using historical data and current account setup, to simulate the behaviour of ads in the future. It works pretty well, and gives fairly consistent results between simulations. 
 
 Or, it did, until we developed the feature called Daily Breakdown.
 
-Daily Breakdown lets you not only see the end result of your simulated campaign, but also how much was delivered each day during the forecast. It turned out that the outcome for any specific day could vary as much as 50% between simulations. This makes Daily Breakdown very unreliable, and pretty much useless. When forecasting with Daily Breakdown we want to see an even distribution using fewer requests: 1/100 to 1/1000, and for a shorter period of time: one day rather than the ad’s lifetime.
+Daily Breakdown lets you see how much was delivered each day during the forecast, in addidtion to the end result of your simulated ad. It turned out that the outcome for any specific day could vary as much as 50% between simulations. This makes Daily Breakdown very unreliable, and all but useless. When forecasting with Daily Breakdown we wanted to see an even distribution using fewer requests: 1/100 to 1/1000, and for a shorter period of time: one day rather than the ad’s lifetime.
 
-We tried increasing the sample size, but the reduction in performance was unacceptable. And the result was not as good as we would hope. So we decided to try a more deterministic approach to ad selection. An approach that would produce an even distribution with a lot fewer requests.
+We tried increasing the sample size, but the reduction in performance was unacceptable. And the result was not as good as we had hoped. So we decided to try a more deterministic approach to ad selection. An approach that would produce a more even distribution when using fewer requests.
 
 ## Deterministic Selection
 
 ### Concepts
 
 + *Actual Weight:* The weight given to an ad. The same weight as described in ‘Distribution Basics’ above.
-+ *Current Weight:* The weight the selection is based on. This is a function of Actual Weight, the number of times the ad was part of a selection, and the number of times it was selected. The Current Weight is 0 initially for every ad.
-+ *Air:* Air represents the chance of nothing being selected. If the sum of all ads’ Actual Weight is less than 1, the air weight is 1 - the sum. 
++ *Current Weight:* The weight the selection is based on. This is a function of Actual Weight, the number of times the ad was part of a selection, and the number of times it was selected. The Current Weight is initially 0 for every ad.
++ *Air:* Air represents the chance of nothing being selected. If the sum of all ads’ Actual Weight is less than 1, the air weight is 1 minus the sum. 
  
 ### Algorithm
 
-After the list of ads has been filtered, and if necessary normalised as described above, instead of randomly picking an ad, we use the following procedure:
+After the list of ads has been filtered and normalised (if necessary) as described above, instead of randomly picking an ad, we use the following procedure:
 
-1. Add each ad’s (and the air’s) Actual Weight to its Current Weight. (a)
+1. Increase each ad's Current Weight by its Actual Weight. (a)
 2. Select the ad with the highest Current Weight.
 3. Reduce the selected ad's Current Weight by 1 (b)
-4. If there are several positions in the selection, adjust the selected ad's Current Weight as if it was present in the selection of the other positions as well (c)
 
-(a): An ad that is part of multiple selections without being selected, will have it's Current Weight increased multiple times, and thereby increasing the chance of being selected in future selections.
+(a): An ad that is part of multiple selections without being selected, will have it's Current Weight increased multiple times, and thereby increasing the chance of being selected in the future.
 
 (b): An ad that is selected will have a smaller chance of being selected again. If the weight was not reduced, the same ad would always be selected.
-
-(c): A selected ad's Current Weight should be the same, regardless of which position it was selected for. Because an ad can not take two positions in the same selection, it will not be part of selection for later positions if it is selected early. It's Current Weight would not be increased as many times as if it was selected last. This must be compensated for.
  
-Each iteration, the same amount of weight is added and subtracted from the Current Weights, which makes it a zero-sum algorithm. That is good for when new ads becomes available as time passes. If the Current Weights would increase only, a new ad would not get selected for a very long time as its weight catches up with other ads. If the Current Weights would decrease over time, then 'old' ads would cease to deliver for a long time as a newer ads became available. It also prevents any overflow problems nicely.
+Each iteration, the same amount of weight is added and subtracted from the Current Weights, which makes it a zero-sum algorithm. That is desirable for when new ads becomes available as time passes. If the Current Weights would increase, a new ad would not get selected for a very long time as its weight catches up with other ads. If the Current Weights would decrease over time, then 'old' ads would cease to deliver for a long time as a newer ads became available. It also prevents any overflow problems nicely.
 
-Most goals will have a Current Weight of between -1 and 1 most of the time. In certain circumstances it might go above or below that slightly for a short time.
+The ads will have a Current Weight of between -1 and 1 most of the time. In certain circumstances, and for a short time, it might go above or below that.
 
 ### The downside
 
-This algorithm introduces more state to the distributor: the Current Weights. The Videoplaza Distributor is a highly distributed service, running on multiple servers across several datacenters on (at least) 3 continents. Keeping the state consistent on all those servers is theoretically possible, but will increase latency and reduce throughput significantly. This is why we are using this algorithm in the forecasting enginge only, where the state can be localized for a single forecast to a single server.
+This algorithm introduces more state to the Distributor: the Current Weights. The Videoplaza Distributor is a distributed service, which runs on multiple servers across several datacenters on (at least) 3 continents. Keeping the state consistent on all those servers is theoretically possible, but will increase latency and reduce throughput significantly. This is why we are using this algorithm in the forecasting engige only, where the state can be localized for a single forecast to a single server.
 
 ### Other considerations
 
-*Multiple Positions:* Quite frequently there are multiple ads in each ad selection. Usually no ad will appear twice in the same selection. After an ad is selected, it is removed from the list (unless it’s air), but the Actual Weights are not changed. Then another selection is made on the remainder of the list, including increasing the Current Weights. To make sure that it does not matter if an ad is selected first or last, the selected (and removed) ad’s Current Weight is also increased.
+*Multiple Positions:* Quite frequently there are multiple ads in each ad selection. Usually no ad will appear twice in the same selection. After an ad is selected, it is removed from the list (unless it’s air), but the Actual Weights are not changed. Then we keep selecting from the remainder of the list, including increasing the Current Weights. To make sure that it does not matter if an ad is selected first or last, the selected (and removed) ad’s Current Weight is also increased.
 
-*Different targeting:* Some ads with wider targeting will be condending with different ads in different selections. This algorithm will still work in these circumstances. See example 2 below.
+*Different targeting:* Some ads with wider targeting will be contending with different ads in different selections. This algorithm will still work in these circumstances. See example 2 below.
 
 <style type="text/css">
     td.up{ color: green; }
