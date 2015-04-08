@@ -13,11 +13,9 @@ author-link: https://github.com/egoon
   p { text-align: justify; text-justify: inter-word; }
 </style>
 
-Selecting which ads to show at any given time is the core task of any ad serving software. It involves satifying complex rules and priorities, integrating with third parties and delivering campaigns in the correct pace according to their schedule. At Videoplaza, we divide this problem into two parts: first we estimate the required relative frequency of each ad (distribution) and the we pick ads in a manner which yields this distribution (ad selection).
+Selecting which ads to show at any given time is at the core of any ad serving software. It involves satifying complex rules and priorities, integrating with third parties and delivering campaigns in the correct pace according to their schedule. At Videoplaza, we divide this problem into two parts: first we estimate the required relative frequency of each ad (distribution) and the we pick ads in a manner which yields this distribution (ad selection).
 
-### Introduction
-
-Let me start by explaining a little bit about how the ad server at Videoplaza works.
+### Background
 
 <img src="/images/deterministic-distribution/ad-serving.png" title="The pink dude is probably you" alt="Ad serving diagram" width="80%">
 
@@ -25,11 +23,9 @@ A Karbon User has typically made a deal with an advertiser to show an ad a certa
 
 At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start, mid-way and end of the show) the Ad Player makes a request to the Distributor for a list of ads. The Distributor figures out which ads to show (this is called a Selection, more on this later), and returns them to the Ad Player. As the Ad Player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These Impressions are then used to calculate which ads should be shown next.
 
-### Distribution basics
+### Current Algorithm
 
-In the Distributor there is a list of ads that may be shown. The ads contain a set of rules, like start and end date, delivery goal, tags and much more. And there is also a weight for each ad.
-
-The rules are used to filter the ad list for each request. Then the weight is used to determine which of the filtered ads should actually be returned.
+Given a list of ads that may be shown, a set of rules, like start and end date, delivery goal, tags and much more, and a weight for each ad, the rules are used to filter the ad list for each request and the weight is used to determine which of the filtered ads should actually be returned.
 
 The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery goal has already been achieved, how often it is filtered out due to rules and more. Weights are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery goal), and 1 means that it should be selected in every request that meets the filter criteria.
 
@@ -50,7 +46,7 @@ In the case where the sum of the weights of the ads is greater than 1, all weigh
 *The sum of all weights is 1.2 and has to be scaled down by 5/6. Ad 1 has 50% chance of being selected, and Ad 2 and 3 have 25% chance each.*
 
 
-### The problem with random forecasting
+### The problem with randomness
 
 The current random algorithm, explained above, works very well in most cases. In the long run the proportions of ads selected will converge to the weights due to the law of large numbers. If only a few requests are made however, the result is very noisy and impossible to forsee. Especially since the weights are updated periodically based on previous delivery.
 
@@ -311,6 +307,6 @@ Reduce its weight by 1 (1 -> 0)
 </table>
 <p/>
 
-Already after four selections, all current weights are back to 0, where we can start iterating again. Ad1 gets selected twice as often as the others even though they have the same weight. But it still get's selected in 50% of all selections it is a part of. 
+After four selections, all current weights are back to 0, and the process starts over. Ad1 gets selected twice as often as the others even though they have the same weight. But it still gets selected in 50% of all selections it is a part of. 
 
 For this reason the weight calculations must take targeting into consideration (actually we count how often an ad is filtered out and increase the weight accordingly).
