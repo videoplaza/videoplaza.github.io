@@ -13,8 +13,7 @@ author-link: https://github.com/egoon
   p { text-align: justify; text-justify: inter-word; }
 </style>
 
-The distribution algorithm is one of the most central in the Videoplaza ad server. This article will describe how the random and new deterministic algorithms work, why it needs to change, and what the up- and down-sides are with deterministic distribution.
-
+Selecting which ads to show at any given time is the core task of any ad serving software. It involves satifying complex rules and priorities, integrating with third parties and delivering campaigns in the correct pace according to their schedule. At Videoplaza, we divide this problem into two parts: first we estimate the required relative frequency of each ad (distribution) and the we pick ads in a manner which yields this distribution (ad selection).
 
 ### Introduction
 
@@ -22,7 +21,7 @@ Let me start by explaining a little bit about how the ad server at Videoplaza wo
 
 <img src="/images/deterministic-distribution/ad-serving.png" title="The pink dude is probably you" alt="Ad serving diagram" width="80%">
 
-A Karbon User, usually a sales person at a cable network or something similar, has sold some ad space to an advertiser. She uploads an ad in the Karbon UI, and adds a bunch of rules according to the deal with the advertiser. The rules usually contain a date span, in what context the ad is allowed, and how many times the ad should be shown (called Impressions). The ad is then saved to an entity store, where other parts of the ad server can access it.
+A Karbon User has typically made a deal with an advertiser to show an ad a certain number of times during a period of time. She uploads the ad in the Karbon UI, and adds rules according to the deal with the advertiser. The rules usually contain a date span, in what context the ad is allowed, and how many times the ad should be shown (called an impression goal). The ad is then saved to a database, where other parts of the ad server can access it.
 
 At some point a TV viewer watches a show that is supported by ads. At every point where there is supposed to be an ad (usually at the start, mid-way and end of the show) the Ad Player makes a request to the Distributor for a list of ads. The Distributor figures out which ads to show (this is called a Selection, more on this later), and returns them to the Ad Player. As the Ad Player plays the ads, it also records every ad that is shown, every Impression, in the Delivery Metrics store. These Impressions are then used to calculate which ads should be shown next.
 
@@ -32,9 +31,9 @@ In the Distributor there is a list of ads that may be shown. The ads contain a s
 
 The rules are used to filter the ad list for each request. Then the weight is used to determine which of the filtered ads should actually be returned.
 
-The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery goal has already been achieved, how often it is filtered out and more. Weights are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery goal), and 1 means that it should be selected in every request that meets the filter criteria.
+The weights are updated periodically, using an algorithm that considers how long the ad is going to be active, how much of it’s delivery goal has already been achieved, how often it is filtered out due to rules and more. Weights are usually between 0 and 1, where 0 means that the ad should never be selected (it has probably already reached it’s delivery goal), and 1 means that it should be selected in every request that meets the filter criteria.
 
-The Selector then randomly selects an ad from the list. If the sum of all ads’ weights is less than 1, there is a chance that no ad will be selected. See example 1:
+The classic way to do this is to randomly select ads using the weights as probabilities (or probabilities proportional to the weights if the sum of the weights is greater than 1). See example 1:
 
 *Example 1:*
 
@@ -42,7 +41,7 @@ The Selector then randomly selects an ad from the list. If the sum of all ads’
 
 *Ad 1 has 60% of being selected, Ad 2 has 30% chance. And there is a 10% chance that no ad will be selected.*
 
-In the case where the sum of the ads’ weights is greater than 1, all weights will be reduced proportionally. See example 2:
+In the case where the sum of the weights of the ads is greater than 1, all weights will be reduced proportionally. See example 2:
 
 *Example 2:*
 
@@ -53,13 +52,13 @@ In the case where the sum of the ads’ weights is greater than 1, all weights w
 
 ### The problem with random forecasting
 
-The current random algorithm, explained above, works very well in most cases. If only a few requests are made, the result is very random, and impossible to forsee. It does even out in the long run, however. Especially since the weights are updated periodically based on previous delivery.
+The current random algorithm, explained above, works very well in most cases. In the long run the proportions of ads selected will converge to the weights due to the law of large numbers. If only a few requests are made however, the result is very noisy and impossible to forsee. Especially since the weights are updated periodically based on previous delivery.
 
-In the forecast team we are currently developing a forecasting engine that runs the Distributor, using historical data and current account setup, to simulate the behaviour of ads in the future. It works pretty well, and gives fairly consistent results between simulations. 
+In the forecast team we are currently developing a forecasting engine that runs the Distributor, using a model of future traffic based on a sample of historical data, to simulate the behaviour of ads in the future. The size of the historical sample determines both the accuracy of the results (larger is better) and the work required to perform each simulation (smaller is faster), and requires careful tuning.
 
-Or, it did, until we developed the feature called Daily Breakdown.
+We tuned it to work well for typical cases and it does. Or, it did, until we developed the feature called Daily Breakdown.
 
-Daily Breakdown lets you see how much was delivered each day during the forecast, in addidtion to the end result of your simulated ad. It turned out that the outcome for any specific day could vary as much as 50% between simulations. This makes Daily Breakdown very unreliable, and all but useless. When forecasting with Daily Breakdown we wanted to see an even distribution using fewer requests: 1/100 to 1/1000, and for a shorter period of time: one day rather than the ad’s lifetime.
+Daily Breakdown lets you see how much was delivered each day during the forecast, in addidtion to the end result of your simulated ad. It turned out that the outcome for any specific day could vary as much as 50% between simulations. This makes Daily Breakdown very noisy, and all but useless. When forecasting with Daily Breakdown we needed the proportion of ads to reach the desired proportion much faster than with the random algorithm, ideally after only a few samples, and to stay the same between different simulations of the same scenario.
 
 We tried increasing the sample size, but the reduction in performance was unacceptable. And the result was not as good as we had hoped. So we decided to try a more deterministic approach to ad selection. An approach that would produce a more even distribution when using fewer requests.
 
